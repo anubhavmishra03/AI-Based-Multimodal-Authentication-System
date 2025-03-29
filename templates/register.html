@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Registration - AI MultiModal Auth</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #4b6cb7, #182848);
+            color: #fff;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+        input {
+            width: 90%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: none;
+            font-size: 1em;
+        }
+        .btn {
+            background: #fff;
+            color: #182848;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            margin-top: 15px;
+            display: inline-block;
+        }
+        video, audio {
+            margin-top: 10px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Register</h2>
+        <input type="text" id="name" placeholder="Enter your name" required>
+        <input type="email" id="email" placeholder="Enter your email" required>
+        <p id="text-prompt">Your audio and video will be recorded for authentication.</p>
+        <video id="video" autoplay></video>
+        <audio id="audio" controls></audio>
+        <button class="btn" onclick="startRecording()">Start Recording</button>
+        <button class="btn" onclick="stopRecording()">Stop & Proceed to Login</button>
+    </div>
+
+    <script>
+        let mediaRecorder, audioRecorder;
+        let videoChunks = [], audioChunks = [];
+        const videoElement = document.getElementById('video');
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                videoElement.srcObject = stream;
+
+                let videoStream = new MediaStream(stream.getVideoTracks());
+                let audioStream = new MediaStream(stream.getAudioTracks());
+
+                mediaRecorder = new MediaRecorder(videoStream, { mimeType: 'video/webm' });
+                audioRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
+
+                mediaRecorder.ondataavailable = event => videoChunks.push(event.data);
+                audioRecorder.ondataavailable = event => audioChunks.push(event.data);
+
+                // mediaRecorder.onstop = processVideo;
+                audioRecorder.onstop = processAudioandVideo;
+
+                mediaRecorder.start();
+                audioRecorder.start();
+
+                setTimeout(stopRecording, 60000); // Stop after 60 sec
+            } catch (error) {
+                console.error('Error accessing media devices:', error);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && audioRecorder) {
+                mediaRecorder.stop();
+                audioRecorder.stop();
+            }
+        }
+
+        function processAudioandVideo() {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const audioFile = new File([audioBlob], 'audio.webm', { type: 'audio/webm' });
+
+            const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
+            const videoFile = new File([videoBlob], 'video.webm', { type: 'video/webm' });
+
+            const formData = new FormData();
+            formData.append('video', videoFile);
+            formData.append('audio', audioFile);
+            formData.append("name", document.getElementById('name').value);
+            formData.append("email", document.getElementById('email').value);
+
+            // uploadFile(videoFile, 'video');
+            videoChunks = [];  // Clear chunks after upload
+
+            // uploadFile(audioFile, 'audio');
+            audioChunks = [];  // Clear chunks after upload
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                window.location.href = '/login';  // Redirect to login only after audio upload
+                
+            })
+            .catch(error => console.error('Upload error:', error));
+        }
+
+        // function uploadFile(file, type) {
+        //     const formData = new FormData();
+        //     formData.append(type, file);
+        //     formData.append("name", document.getElementById('name').value);
+        //     formData.append("email", document.getElementById('email').value);
+
+        //     fetch('/upload', {
+        //         method: 'POST',
+        //         body: formData
+        //     })
+        //     .then(response => response.json())
+        //     .then(data => {
+        //         if (type === 'audio') {
+        //             window.location.href = '/login';  // Redirect to login only after audio upload
+        //         }
+        //     })
+        //     .catch(error => console.error('Upload error:', error));
+        // }
+    </script>
+</body>
+</html>

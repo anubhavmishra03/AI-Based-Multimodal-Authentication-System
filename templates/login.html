@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - AI MultiModal Auth</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            color: #fff;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+        input {
+            width: 90%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: none;
+            font-size: 1em;
+        }
+        .btn {
+            background: #fff;
+            color: #ff4b2b;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            margin-top: 15px;
+            display: inline-block;
+        }
+        video, audio {
+            margin-top: 10px;
+            width: 100%;
+        }
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            color: black;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Login</h2>
+        <input type="text" id="name" placeholder="Enter your name" required>
+        <input type="email" id="email" placeholder="Enter your email" required>
+        <p>Please look at the camera and speak clearly for 10 seconds.</p>
+        <video id="video" autoplay></video>
+        <button class="btn" onclick="startRecording()">Start Recording</button>
+        <button class="btn" onclick="stopRecording()">Stop & Authenticate</button>
+    </div>
+
+    <div id="popup-success" class="popup">✅ Login Successful!</div>
+    <div id="popup-failed" class="popup">❌ Login Failed!</div>
+
+    <script>
+        let mediaRecorder, audioRecorder;
+        let videoChunks = [], audioChunks = [];
+        const videoElement = document.getElementById('video');
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                videoElement.srcObject = stream;
+
+                let videoStream = new MediaStream(stream.getVideoTracks());
+                let audioStream = new MediaStream(stream.getAudioTracks());
+
+                mediaRecorder = new MediaRecorder(videoStream, { mimeType: 'video/webm' });
+                audioRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
+
+                mediaRecorder.ondataavailable = event => videoChunks.push(event.data);
+                audioRecorder.ondataavailable = event => audioChunks.push(event.data);
+
+                // mediaRecorder.onstop = processVideo;
+                audioRecorder.onstop = processAudioandVideo;
+
+                mediaRecorder.start();
+                audioRecorder.start();
+
+                setTimeout(stopRecording, 60000); // Stop after 60 sec
+            } catch (error) {
+                console.error('Error accessing media devices:', error);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && audioRecorder) {
+                mediaRecorder.stop();
+                audioRecorder.stop();
+            }
+        }
+
+        // Process Audio File
+        function processAudioandVideo() {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const audioFile = new File([audioBlob], 'audio.webm', { type: 'audio/webm' });
+
+            const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
+            const videoFile = new File([videoBlob], 'video.webm', { type: 'video/webm' });
+
+            const formData = new FormData();
+            formData.append('video', videoFile);
+            formData.append('audio', audioFile);
+            formData.append("name", document.getElementById('name').value);
+            formData.append("email", document.getElementById('email').value);
+
+            fetch('/verify', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    document.getElementById("popup-success").style.display = "block";
+                } else {
+                    document.getElementById("popup-failed").style.display = "block";
+                }
+            })
+            .catch(error => console.error(error));
+            // uploadFile(videoFile, 'video');
+            videoChunks = [];  // Clear recorded chunks
+
+            // uploadFile(audioFile, 'audio');
+            audioChunks = [];  // Clear recorded chunks
+        }
+    </script>
+</body>
+</html>
